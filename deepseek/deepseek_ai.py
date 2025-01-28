@@ -39,11 +39,11 @@ def generate_text(input: str, options: list[dict]):
     (e.g. gr.Image to return an image), a dict (for a complete openai-style message response), or a list of such messages.
     """
     # Extract options
-    max_length = options.get("max_length", 1024)
-    num_return_sequences = options.get("num_return_sequences", 1)
-    top_p = options.get("top_p", 0.95)
-    top_k = options.get("top_k", 50)
-    temperature = options.get("temperature", 0.6)
+    max_length = 1024
+    num_return_sequences = "num_return_sequences"
+    top_p = 0.95
+    top_k = 50
+    temperature = "temperature", 0.6
 
     # Tokenize the input text
     input_ids = tokenizer.encode(
