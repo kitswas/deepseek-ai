@@ -40,10 +40,10 @@ def generate_text(input: str, options: list[dict]):
     """
     # Extract options
     max_length = 1024
-    num_return_sequences = "num_return_sequences"
+    num_return_sequences = 1
     top_p = 0.95
     top_k = 50
-    temperature = "temperature", 0.6
+    temperature = 0.6
 
     # Tokenize the input text
     input_ids = tokenizer.encode(
