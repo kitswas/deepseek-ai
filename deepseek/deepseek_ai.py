@@ -1,7 +1,9 @@
+from pprint import pformat, pprint
 import sys
 import gradio as gr
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 import torch
+from threading import Thread
 
 model_source = "huggingface"
 
@@ -30,48 +32,69 @@ model.to(device)
 
 
 # Define the generation function
-def generate_text(input: str, options: list[dict]):
+def generate_text(
+    message: str, history: list, temperature: float = 0.6, max_new_tokens: int = 1024
+):
     """
-    Normally (assuming type is set to "messages"), the function should accept two parameters:
-    a str representing the input message and list of openai-style dictionaries:
-    {"role": "user" | "assistant", "content": str | {"path": str} | gr.Component} representing the chat history.
-    The function should return/yield a str (for a simple message), a supported Gradio component
-    (e.g. gr.Image to return an image), a dict (for a complete openai-style message response), or a list of such messages.
+    Args:
+        message (str): The input message.
+        history (list): The conversation history used by ChatInterface.
+        temperature (float): The temperature for generating the response.
+        max_new_tokens (int): The maximum number of new tokens to generate.
     """
-    # Extract options
-    max_length = 1024
-    num_return_sequences = 1
+    # Options
+    # num_return_sequences = 1
     top_p = 0.95
     top_k = 50
-    temperature = 0.6
 
-    # Tokenize the input text
-    input_ids = tokenizer.encode(
-        input,
-        return_tensors="pt",
-        padding=True,
-        add_special_tokens=True,
-        max_length=max_length,
-        truncation=True,
+    max_conversation_length = 128
+    conversation = []
+    print(pformat(history), file=sys.stderr)
+    for user, assistant in history:
+        conversation.extend(
+            [
+                {"role": "user", "content": user},
+                {"role": "assistant", "content": assistant},
+            ]
+        )
+    conversation.append({"role": "user", "content": message})
+    if len(conversation) > max_conversation_length:
+        conversation = conversation[:max_conversation_length]
+
+    input_ids = tokenizer.apply_chat_template(conversation, return_tensors="pt").to(
+        model.device
     )
+
     input_ids = input_ids.to(device)
 
-    # Generate text based on the input
-    output = model.generate(
-        input_ids,
-        max_length=max_length,
-        pad_token_id=tokenizer.pad_token_id,
-        num_return_sequences=num_return_sequences,
-        do_sample=True,
-        top_p=top_p,
-        top_k=top_k,
-        temperature=temperature,
+    streamer = TextIteratorStreamer(
+        tokenizer, timeout=15.0, skip_prompt=True, skip_special_tokens=True
     )
-    output = output.to("cpu")
 
-    # Decode the generated text
-    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-    return generated_text
+    generated_kwargs = dict(
+        input_ids=input_ids,
+        streamer=streamer,
+        max_new_tokens=max_new_tokens,
+        do_sample=True,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        # num_return_sequences=num_return_sequences,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    # Prevent crashing when the temperature is 0.
+    if temperature == 0:
+        generated_kwargs["do_sample"] = False
+
+    t = Thread(target=model.generate, kwargs=generated_kwargs)
+    t.start()
+
+    outputs = []
+    for text in streamer:
+        outputs.append(text)
+        # print(outputs)
+        yield "".join(outputs)
 
 
 def generate_multimodal(inputs: dict, options: list[dict]):
@@ -85,15 +108,44 @@ def generate_multimodal(inputs: dict, options: list[dict]):
 # Create the Gradio interface
 interface = gr.ChatInterface(
     fn=generate_text,
+    additional_inputs_accordion=gr.Accordion(
+        label="⚙️ Parameters", open=False, render=False
+    ),
+    additional_inputs=[
+        gr.Slider(
+            minimum=0,
+            maximum=1,
+            step=0.1,
+            value=0.6,
+            label="Temperature",
+            render=False,
+        ),
+        gr.Slider(
+            minimum=1,
+            maximum=8192,
+            step=1,
+            value=512,
+            label="Max new tokens",
+            render=False,
+        ),
+    ],
     cache_mode="lazy",
     cache_examples=True,
     examples=[
-        "What can you do?",
-        "What is 2+2?",
+        [
+            "What can you do?",
+            0.6,
+            128,
+        ],
+        [
+            "What is 2+2?",
+            0.5,
+            16,
+        ],
     ],
     type="messages",
     title="DeepSeek AI",
-    description="DeepSeek AI is a text generation model trained on a large corpus of text. It can generate text based on the input you provide.",
+    description="This is a demo of DeepSeek AI. It is not an official project.",
 )
 
 # Launch the interface
