@@ -9,10 +9,16 @@
 You need the UV package/project manager to install the dependencies.  
 You can get it from [here](https://docs.astral.sh/uv/getting-started/installation/).
 
+Set up the environment.
+
 ```bash
+uv venv
+.venv/Scripts/activate
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 --link-mode=symlink
 uv sync
 ```
+
+Run the script.
 
 ```bash
 uv run python ./deepseek/deepseek_ai.py
