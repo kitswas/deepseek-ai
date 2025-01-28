@@ -9,7 +9,7 @@
 You need the UV package/project manager to install the dependencies.  
 You can get it from [here](https://docs.astral.sh/uv/getting-started/installation/).
 
-Set up the environment.
+Set up the environment. (Only once)
 
 ```bash
 uv venv
@@ -21,6 +21,7 @@ uv sync
 Run the script.
 
 ```bash
+.venv/Scripts/activate
 uv run python ./deepseek/deepseek_ai.py
 ```
 
